@@ -20,12 +20,18 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@azure/identity": "^4.12.0",
+    "@azure/service-bus": "^7.9.5",
+    "@azure/storage-blob": "^12.28.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
-    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-express": "^11.1.6",
     "@nestjs/typeorm": "^11.0.0",
+    "@types/multer": "^2.0.0",
+    "csv-parse": "^6.1.0",
     "mssql": "^11.0.1",
+    "multer": "^2.0.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.27"
@@ -36,6 +42,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/csv-parse": "^1.1.12",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
