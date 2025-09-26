@@ -55,4 +55,26 @@ export class BlobStorageService {
     const blockBlobClient = containerClient.getBlockBlobClient(fileName);
     await blockBlobClient.deleteIfExists();
   }
+
+  async ensureContainerExists(): Promise<void> {
+    const containerClient = this.blobServiceClient.getContainerClient(
+      this.containerName,
+    );
+    const exists = await containerClient.exists();
+    if (!exists) {
+      await containerClient.create();
+    }
+  }
+
+  async listFiles(prefix: string = ''): Promise<string[]> {
+    const containerClient = this.blobServiceClient.getContainerClient(
+      this.containerName,
+    );
+    const fileNames: string[] = [];
+
+    for await (const blob of containerClient.listBlobsFlat({ prefix })) {
+      fileNames.push(blob.name);
+    }
+    return fileNames;
+  }
 }
