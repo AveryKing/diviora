@@ -45,7 +45,14 @@ export class BlobStorageService {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
     }
-
     return Buffer.concat(chunks);
+  }
+
+  async deleteFile(fileName: string): Promise<void> {
+    const containerClient = this.blobServiceClient.getContainerClient(
+      this.containerName,
+    );
+    const blockBlobClient = containerClient.getBlockBlobClient(fileName);
+    await blockBlobClient.deleteIfExists();
   }
 }
