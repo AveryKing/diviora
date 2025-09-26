@@ -5,7 +5,7 @@ import { DataSource } from '../entities/data-source.entity';
 import { DataIngestionJob } from '../entities/data-ingestion-job.entity';
 import { ProcessedData } from '../entities/processed-data.entity';
 import { CsvProcessorService } from './csv-processor.service';
-// import { BlobStorageService } from './blob-storage.service';
+import { BlobStorageService } from './blob-storage.service';
 // import { MessageService } from './message.service';
 
 @Injectable()
@@ -18,7 +18,7 @@ export class DataIngestionService {
     @InjectRepository(ProcessedData)
     private processedDataRepository: Repository<ProcessedData>,
     private csvProcessorService: CsvProcessorService,
-    // private blobStorageService: BlobStorageService,
+    private blobStorageService: BlobStorageService,
     // private messageService: MessageService,
   ) {}
 
@@ -26,6 +26,19 @@ export class DataIngestionService {
     let job: DataIngestionJob | undefined;
 
     try {
+      // Ensure blob container exists
+      await this.blobStorageService.ensureContainerExists();
+
+      // Generate unique filename for blob storage
+      const timestamp = Date.now();
+      const blobFileName = `csv-uploads/${timestamp}-${file.originalname}`;
+
+      // Upload file to blob storage
+      const blobUrl = await this.blobStorageService.uploadFile(
+        blobFileName,
+        file.buffer,
+      );
+
       // Create a data source record
       const dataSource = this.dataSourceRepository.create({
         name: `CSV Upload - ${file.originalname}`,
@@ -35,6 +48,8 @@ export class DataIngestionService {
           fileSize: file.size,
           mimeType: file.mimetype,
           uploadedAt: new Date().toISOString(),
+          blobUrl: blobUrl,
+          blobPath: blobFileName,
         }),
       });
 
@@ -43,7 +58,7 @@ export class DataIngestionService {
       // Create an ingestion job
       job = this.jobRepository.create({
         status: 'running',
-        blobStoragePath: `csv-uploads/${Date.now()}-${file.originalname}`,
+        blobStoragePath: blobFileName,
         dataSourceId: savedDataSource.id,
         recordsProcessed: 0,
       });
@@ -73,6 +88,7 @@ export class DataIngestionService {
         message: 'CSV file processed successfully',
         dataSource: savedDataSource,
         job,
+        blobUrl,
         processingResult: {
           totalRows: processingResult.totalRows,
           validRows: processingResult.validRows,
@@ -93,6 +109,29 @@ export class DataIngestionService {
 
       throw new Error(`Failed to process CSV upload: ${error.message}`);
     }
+  }
+
+  async downloadOriginalFile(
+    jobId: number,
+  ): Promise<{ fileName: string; data: Buffer }> {
+    const job = await this.jobRepository.findOne({
+      where: { id: jobId },
+      relations: ['dataSource'],
+    });
+
+    if (!job || !job.blobStoragePath) {
+      throw new Error('Job or file not found');
+    }
+
+    const data = await this.blobStorageService.downloadFile(
+      job.blobStoragePath,
+    );
+    const config = JSON.parse(job.dataSource.configuration);
+
+    return {
+      fileName: config.fileName,
+      data: data,
+    };
   }
 
   private async storeProcessedData(

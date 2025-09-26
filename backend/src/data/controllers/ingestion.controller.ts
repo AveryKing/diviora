@@ -61,4 +61,18 @@ export class IngestionController {
   async triggerIngestion(@Param('sourceId') sourceId: string) {
     return this.ingestionService.triggerIngestion(parseInt(sourceId));
   }
+
+  @Get('download/:jobId')
+  async downloadOriginalFile(@Param('jobId') jobId: string, @Res() res: any) {
+    const { fileName, data } = await this.ingestionService.downloadOriginalFile(
+      parseInt(jobId),
+    );
+
+    res.set({
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+    });
+
+    res.send(data);
+  }
 }
