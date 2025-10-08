@@ -4,9 +4,8 @@ import { Repository } from 'typeorm';
 import { DataSource } from '../entities/data-source.entity';
 import { DataIngestionJob } from '../entities/data-ingestion-job.entity';
 import { ProcessedData } from '../entities/processed-data.entity';
-import { CsvProcessorService } from './csv-processor.service';
 import { BlobStorageService } from './blob-storage.service';
-// import { MessageService } from './message.service';
+import { MessageService } from './message.service';
 
 @Injectable()
 export class DataIngestionService {
@@ -17,14 +16,11 @@ export class DataIngestionService {
     private jobRepository: Repository<DataIngestionJob>,
     @InjectRepository(ProcessedData)
     private processedDataRepository: Repository<ProcessedData>,
-    private csvProcessorService: CsvProcessorService,
     private blobStorageService: BlobStorageService,
-    // private messageService: MessageService,
+    private messageService: MessageService,
   ) {}
 
   async processCsvUpload(file: any) {
-    let job: DataIngestionJob | undefined;
-
     try {
       // Ensure blob container exists
       await this.blobStorageService.ensureContainerExists();
@@ -55,58 +51,41 @@ export class DataIngestionService {
 
       const savedDataSource = await this.dataSourceRepository.save(dataSource);
 
-      // Create an ingestion job
-      job = this.jobRepository.create({
-        status: 'running',
+      // Create an ingestion job with "queued" status
+      const job = this.jobRepository.create({
+        status: 'queued',
         blobStoragePath: blobFileName,
         dataSourceId: savedDataSource.id,
         recordsProcessed: 0,
       });
 
-      job = await this.jobRepository.save(job);
+      const savedJob = await this.jobRepository.save(job);
 
-      // Process the CSV file
-      const processingResult = await this.csvProcessorService.processCsvFile(
-        file.buffer,
-        file.originalname,
+      // Send message to Service Bus for async processing
+      const correlationId = await this.messageService.sendDataProcessingMessage(
+        savedJob.id,
+        blobFileName,
+        {
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          dataSourceId: savedDataSource.id,
+        },
       );
 
-      // Store the processed data
-      await this.storeProcessedData(job, processingResult, file.originalname);
-
-      // Update job status
-      job.status = processingResult.validRows > 0 ? 'completed' : 'failed';
-      job.recordsProcessed = processingResult.validRows;
-
-      if (processingResult.errors.length > 0) {
-        job.errorMessage = processingResult.errors.slice(0, 5).join('; ');
-      }
-
-      job = await this.jobRepository.save(job);
-
       return {
-        message: 'CSV file processed successfully',
+        message: 'CSV file uploaded successfully and queued for processing',
         dataSource: savedDataSource,
-        job,
-        blobUrl,
-        processingResult: {
-          totalRows: processingResult.totalRows,
-          validRows: processingResult.validRows,
-          invalidRows: processingResult.invalidRows,
-          columns: processingResult.columns,
-          errorCount: processingResult.errors.length,
+        job: {
+          ...savedJob,
+          correlationId,
         },
-        summary:
-          this.csvProcessorService.generateProcessingSummary(processingResult),
+        blobUrl: blobUrl,
+        status: 'queued',
+        processingMessage:
+          'Your file is being processed in the background. Check the job status for updates.',
       };
     } catch (error) {
-      // Update job status to failed if job was created
-      if (job) {
-        job.status = 'failed';
-        job.errorMessage = error.message;
-        await this.jobRepository.save(job);
-      }
-
       throw new Error(`Failed to process CSV upload: ${error.message}`);
     }
   }

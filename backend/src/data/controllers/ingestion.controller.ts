@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Query,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DataIngestionService } from '../services/data-ingestion.service';
