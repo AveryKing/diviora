@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataSource } from '../entities/data-source.entity';
@@ -6,9 +6,12 @@ import { DataIngestionJob } from '../entities/data-ingestion-job.entity';
 import { ProcessedData } from '../entities/processed-data.entity';
 import { BlobStorageService } from './blob-storage.service';
 import { MessageService } from './message.service';
+import { CsvProcessorService } from './csv-processor.service';
 
 @Injectable()
 export class DataIngestionService {
+  private readonly logger = new Logger(DataIngestionService.name);
+
   constructor(
     @InjectRepository(DataSource)
     private dataSourceRepository: Repository<DataSource>,
@@ -18,6 +21,7 @@ export class DataIngestionService {
     private processedDataRepository: Repository<ProcessedData>,
     private blobStorageService: BlobStorageService,
     private messageService: MessageService,
+    private csvProcessorService: CsvProcessorService,
   ) {}
 
   async processCsvUpload(file: any) {
@@ -200,6 +204,94 @@ export class DataIngestionService {
     }
 
     return savedJob;
+  }
+
+  async processJobFromQueue(
+    jobId: number,
+    blobPath: string,
+    metadata: {
+      fileName: string;
+      fileSize: number;
+      dataSourceId: number;
+      correlationId?: string;
+    },
+  ): Promise<void> {
+    this.logger.log(
+      `Starting processing for job ${jobId}, correlationId: ${metadata.correlationId}`,
+    );
+
+    try {
+      // Get the job
+      const job = await this.jobRepository.findOne({
+        where: { id: jobId },
+      });
+
+      if (!job) {
+        throw new Error(`Job ${jobId} not found`);
+      }
+
+      // Update job status to processing
+      job.status = 'processing';
+      job.startedAt = new Date();
+      await this.jobRepository.save(job);
+
+      this.logger.log(`Job ${jobId} status updated to processing`);
+
+      // Download CSV file from blob storage
+      this.logger.log(`Downloading file from blob storage: ${blobPath}`);
+      const fileBuffer = await this.blobStorageService.downloadFile(blobPath);
+
+      // Process the CSV file
+      this.logger.log(`Processing CSV file: ${metadata.fileName}`);
+      const processingResult = await this.csvProcessorService.processCsvFile(
+        fileBuffer,
+        metadata.fileName,
+      );
+
+      this.logger.log(
+        `CSV processing completed. Valid rows: ${processingResult.validRows}, Invalid rows: ${processingResult.invalidRows}`,
+      );
+
+      // Store processed data
+      this.logger.log(`Storing processed data for job ${jobId}`);
+      await this.storeProcessedData(job, processingResult, metadata.fileName);
+
+      // Update job status to completed
+      job.status = 'completed';
+      job.completedAt = new Date();
+      job.recordsProcessed = processingResult.validRows;
+      job.errorMessage = null;
+      await this.jobRepository.save(job);
+
+      this.logger.log(
+        `Job ${jobId} completed successfully. Processed ${processingResult.validRows} records`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error processing job ${jobId}: ${error.message}`,
+        error.stack,
+      );
+
+      // Try to update job status to failed
+      try {
+        const job = await this.jobRepository.findOne({
+          where: { id: jobId },
+        });
+
+        if (job) {
+          job.status = 'failed';
+          job.completedAt = new Date();
+          job.errorMessage = error.message;
+          await this.jobRepository.save(job);
+        }
+      } catch (updateError) {
+        this.logger.error(
+          `Failed to update job status to failed: ${updateError.message}`,
+        );
+      }
+
+      throw error;
+    }
   }
 
   private async processApiDataSource(

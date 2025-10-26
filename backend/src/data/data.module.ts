@@ -8,6 +8,7 @@ import { DataIngestionService } from './services/data-ingestion.service';
 import { CsvProcessorService } from './services/csv-processor.service';
 import { BlobStorageService } from './services/blob-storage.service';
 import { MessageService } from './services/message.service';
+import { MessageConsumerService } from './services/message-consumer.service';
 import { Sample } from './entities/sample.entity';
 import { DataSource } from './entities/data-source.entity';
 import { DataIngestionJob } from './entities/data-ingestion-job.entity';
@@ -34,6 +35,7 @@ import { ProcessedData } from './entities/processed-data.entity';
     CsvProcessorService,
     BlobStorageService,
     MessageService,
+    MessageConsumerService,
   ],
 })
 export class DataModule {}

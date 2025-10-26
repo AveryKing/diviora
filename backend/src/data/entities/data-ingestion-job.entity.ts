@@ -12,19 +12,25 @@ export class DataIngestionJob {
   id: number;
 
   @Column()
-  status: string; // 'pending', 'running', 'completed', 'failed'
+  status: string; // 'queued', 'processing', 'completed', 'failed'
 
   @Column({ nullable: true })
   recordsProcessed: number;
 
-  @Column({ nullable: true })
-  errorMessage: string;
+  @Column({ nullable: true, type: 'nvarchar', length: 'MAX' })
+  errorMessage: string | null;
 
   @Column({ nullable: true })
   blobStoragePath: string; // Path to raw data in Azure Blob Storage
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ nullable: true })
+  startedAt: Date;
+
+  @Column({ nullable: true })
+  completedAt: Date;
 
   @ManyToOne('DataSource', 'ingestionJobs')
   @JoinColumn({ name: 'dataSourceId' })
