@@ -7,6 +7,7 @@ import { ProcessedData } from '../entities/processed-data.entity';
 import { BlobStorageService } from './blob-storage.service';
 import { MessageService } from './message.service';
 import { CsvProcessorService } from './csv-processor.service';
+import {DataSource as TypeOrmDataSource} from 'typeorm';
 
 @Injectable()
 export class DataIngestionService {
@@ -22,77 +23,75 @@ export class DataIngestionService {
     private blobStorageService: BlobStorageService,
     private messageService: MessageService,
     private csvProcessorService: CsvProcessorService,
+    private connection: TypeOrmDataSource
   ) {}
 
-  async processCsvUpload(file: any) {
-    try {
-      // Ensure blob container exists
-      await this.blobStorageService.ensureContainerExists();
+async processCsvUpload(file: any) {
+  const queryRunner = this.connection.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-      // Generate unique filename for blob storage
-      const timestamp = Date.now();
-      const blobFileName = `csv-uploads/${timestamp}-${file.originalname}`;
+  try {
+    await this.blobStorageService.ensureContainerExists();
+    const timestamp = Date.now();
+    const blobFileName = `csv-uploads/${timestamp}-${file.originalname}`;
+    
+    // TODO: remove file if db fails
+    const blobUrl = await this.blobStorageService.uploadFile(blobFileName, file.buffer);
 
-      // Upload file to blob storage
-      const blobUrl = await this.blobStorageService.uploadFile(
-        blobFileName,
-        file.buffer,
-      );
-
-      // Create a data source record
-      const dataSource = this.dataSourceRepository.create({
-        name: `CSV Upload - ${file.originalname}`,
-        type: 'csv',
-        configuration: JSON.stringify({
-          fileName: file.originalname,
-          fileSize: file.size,
-          mimeType: file.mimetype,
-          uploadedAt: new Date().toISOString(),
-          blobUrl: blobUrl,
-          blobPath: blobFileName,
-        }),
-      });
-
-      const savedDataSource = await this.dataSourceRepository.save(dataSource);
-
-      // Create an ingestion job with "queued" status
-      const job = this.jobRepository.create({
-        status: 'queued',
-        blobStoragePath: blobFileName,
-        dataSourceId: savedDataSource.id,
-        recordsProcessed: 0,
-      });
-
-      const savedJob = await this.jobRepository.save(job);
-
-      // Send message to Service Bus for async processing
-      const correlationId = await this.messageService.sendDataProcessingMessage(
-        savedJob.id,
-        blobFileName,
-        {
-          fileName: file.originalname,
-          fileSize: file.size,
-          mimeType: file.mimetype,
-          dataSourceId: savedDataSource.id,
-        },
-      );
-
-      return {
-        message: 'CSV file uploaded successfully and queued for processing',
-        dataSource: savedDataSource,
-        job: {
-          ...savedJob,
-          correlationId,
-        },
+    
+    const dataSource = queryRunner.manager.create(DataSource, {
+      name: `CSV Upload - ${file.originalname}`,
+      type: 'csv',
+      configuration: JSON.stringify({
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        uploadedAt: new Date().toISOString(),
         blobUrl: blobUrl,
-        status: 'queued',
-        processingMessage:
-          'Your file is being processed in the background. Check the job status for updates.',
-      };
-    } catch (error) {
-      throw new Error(`Failed to process CSV upload: ${error.message}`);
-    }
+        blobPath: blobFileName,
+      }),
+    });
+    
+    const savedDataSource = await queryRunner.manager.save(dataSource);
+
+    const job = queryRunner.manager.create(DataIngestionJob, {
+      status: 'queued',
+      blobStoragePath: blobFileName,
+      dataSourceId: savedDataSource.id,
+      recordsProcessed: 0,
+    });
+
+    const savedJob = await queryRunner.manager.save(job);
+
+    await queryRunner.commitTransaction();
+
+
+    const correlationId = await this.messageService.sendDataProcessingMessage(
+      savedJob.id,
+      blobFileName,
+      {
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        dataSourceId: savedDataSource.id,
+      },
+    );
+
+    return {
+      message: 'CSV file uploaded successfully and queued for processing',
+      dataSource: savedDataSource,
+      job: { ...savedJob, correlationId },
+      status: 'queued',
+    };
+
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    throw new Error(`Failed to process CSV upload: ${error.message}`);
+  } finally {
+    await queryRunner.release();
   }
+}
 
   async downloadOriginalFile(
     jobId: number,
