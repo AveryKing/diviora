@@ -13,6 +13,8 @@ services:
       - '1433:1433'
     volumes:
       - db_data:/var/opt/mssql
+      - ./init-db.sql:/tmp/init-db.sql
+    command: /bin/bash -c '/opt/mssql/bin/sqlservr & sleep 15 && /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Test123! -C -i /tmp/init-db.sql && wait'
     healthcheck:
       test:
         [
@@ -23,7 +25,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-
   # Your NestJS Application
   api:
     build: .
