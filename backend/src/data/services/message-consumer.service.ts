@@ -31,10 +31,16 @@ export class MessageConsumerService implements OnModuleInit, OnModuleDestroy {
     this.receiver = this.serviceBusClient.createReceiver(this.queueName);
   }
 
-  async onModuleInit() {
+async onModuleInit() {
+  const enabled = this.configService.get<string>('ENABLE_MESSAGE_CONSUMER', 'true');
+  
+  if (enabled === 'true') {
     this.logger.log('Starting message consumer...');
     this.startProcessing();
+  } else {
+    this.logger.log('Message consumer disabled via ENABLE_MESSAGE_CONSUMER flag');
   }
+}
 
   async onModuleDestroy() {
     this.logger.log('Stopping message consumer...');
