@@ -9,7 +9,7 @@ using Dapper;
 
 namespace Diviora.Worker.Strategies
 {
-    public class CsvIngestionStrategy : IJobStrategy
+    public class CsvIngestionStrategy : BaseIngestionStrategy
     {
         private readonly ILogger<CsvIngestionStrategy> _logger;
         private readonly string _blobConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? "";
@@ -20,7 +20,7 @@ namespace Diviora.Worker.Strategies
             _logger = logger;
         }
 
-        public async Task ExecuteAsync(JobMessage job)
+        public override async Task ExecuteAsync(JobMessage job)
         {
             _logger.LogInformation($"[CSV Strategy] Starting Job {job.JobId} ({job.FileName})...");
 
@@ -64,13 +64,6 @@ namespace Diviora.Worker.Strategies
 
             _logger.LogInformation($"[CSV Strategy] Completed Job {job.JobId}. Processed {totalRecords} rows.");
         }
-
-        private async Task BulkInsertAsync(SqlConnection conn, List<ProcessedData> data)
-        {
-            var sql = @"INSERT INTO processed_data (jobId, rowNumber, data, sourceFileName, createdAt) 
-                        VALUES (@JobId, @RowNumber, @Data, @SourceFileName, @CreatedAt)";
-            
-            await conn.ExecuteAsync(sql, data);
-        }
+        
     }
 }
