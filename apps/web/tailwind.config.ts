@@ -19,8 +19,8 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        sans: ["var(--font-geist-sans)", ...fontFamily.sans],
-        mono: ["var(--font-geist-mono)", ...fontFamily.mono],
+        // Updated to match the "Inter" variable from layout.tsx
+        sans: ["var(--font-sans)", ...fontFamily.sans],
       },
       colors: {
         border: "var(--border)",
