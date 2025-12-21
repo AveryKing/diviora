@@ -74,6 +74,7 @@ async processCsvUpload(file: any) {
         fileName: file.originalname,
         fileSize: file.size,
         mimeType: file.mimetype,
+        fileType: 'csv',
         dataSourceId: savedDataSource.id,
       },
     );
@@ -212,6 +213,7 @@ async processCsvUpload(file: any) {
       fileName: string;
       fileSize: number;
       dataSourceId: number;
+      fileType?: string;
       correlationId?: string;
     },
   ): Promise<void> {
