@@ -14,7 +14,7 @@ namespace Diviora.Worker.Strategies
 
         public IJobStrategy GetStrategy(JobMessage job)
         {
-            return job.FileType.ToLower() switch
+            return (job.FileType ?? string.Empty).ToLower() switch
             {
                 "csv" => _serviceProvider.GetRequiredService<CsvIngestionStrategy>(),
                 "sql" => _serviceProvider.GetRequiredService<SqlIngestionStrategy>(),
