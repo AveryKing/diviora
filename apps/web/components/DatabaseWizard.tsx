@@ -9,13 +9,6 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 import { Progress } from "./ui/progress";
 import {
   Database,
@@ -24,8 +17,11 @@ import {
   Loader2,
   ChevronRight,
   ChevronLeft,
+  Table as TableIcon,
+  ArrowRight,
 } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { ScrollArea } from "./ui/scroll-area";
 
 type DatabaseType = "postgresql" | "mysql" | "mongodb" | "mssql" | "oracle";
 
@@ -45,16 +41,22 @@ const databaseDefaults: Record<DatabaseType, { port: string; icon: string }> = {
   postgresql: { port: "5432", icon: "🐘" },
   mysql: { port: "3306", icon: "🐬" },
   mongodb: { port: "27017", icon: "🍃" },
-  mssql: { port: "1433", icon: "🪟" },
+  mssql: { port: "1433", icon: "🟦" },
   oracle: { port: "1521", icon: "🔴" },
 };
 
 interface DatabaseWizardProps {
   onBack?: () => void;
-  onConnect?: (config: any) => Promise<unknown>;
+  // Updated signature: returns the list of tables on success
+  onConnect?: (config: any) => Promise<string[]>;
+  onComplete?: (table: string) => void;
 }
 
-export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
+export function DatabaseWizard({
+  onBack,
+  onConnect,
+  onComplete,
+}: DatabaseWizardProps) {
   const [step, setStep] = useState(1);
   const [config, setConfig] = useState<DatabaseConfig>({
     type: "",
@@ -68,8 +70,10 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [tables, setTables] = useState<string[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
 
-  const totalSteps = 3;
+  const totalSteps = 4; // Increased to 4
   const progress = (step / totalSteps) * 100;
 
   const handleDatabaseTypeChange = (type: DatabaseType) => {
@@ -86,17 +90,21 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
 
     try {
       if (onConnect) {
-        await onConnect(config);
+        const discoveredTables = await onConnect(config);
+        setTables(discoveredTables);
+        setConnectionStatus("success");
+        // Auto-advance after short delay
+        setTimeout(() => setStep(4), 1000);
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Mock for UI testing
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        setTables(["Users", "Orders", "Products", "AuditLogs"]);
+        setConnectionStatus("success");
+        setTimeout(() => setStep(4), 1000);
       }
-      setConnectionStatus("success");
     } catch (e) {
       setConnectionStatus("error");
-      setErrorMessage(
-        "Failed to connect: " +
-          (e instanceof Error ? e.message : "Unknown error")
-      );
+      setErrorMessage(e?.message || (typeof e === 'string' ? e : 'Unknown error'));
     }
   };
 
@@ -129,6 +137,7 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
         </div>
       </div>
 
+      {/* STEP 1: Type Selection */}
       {step === 1 && (
         <Card>
           <CardHeader>
@@ -165,11 +174,7 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                       </span>
                       <div>
                         <div className="capitalize">
-                          {dbType === "mssql"
-                            ? "MS SQL Server"
-                            : dbType === "mongodb"
-                            ? "MongoDB"
-                            : dbType}
+                          {dbType === "mssql" ? "MS SQL Server" : dbType}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           Port {databaseDefaults[dbType].port}
@@ -180,12 +185,10 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                 );
               })}
             </div>
-
             <div className="flex justify-between pt-4">
               {onBack && (
                 <Button variant="outline" onClick={onBack}>
-                  <ChevronLeft className="mr-2 size-4" /> Back to Source
-                  Selection
+                  <ChevronLeft className="mr-2 size-4" /> Back
                 </Button>
               )}
               <Button
@@ -200,6 +203,7 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
         </Card>
       )}
 
+      {/* STEP 2: Configuration */}
       {step === 2 && (
         <Card>
           <CardHeader>
@@ -218,13 +222,12 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                 onChange={(e) => setConfig({ ...config, name: e.target.value })}
               />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="host">Host *</Label>
                 <Input
                   id="host"
-                  placeholder="localhost or IP address"
+                  placeholder="localhost or IP"
                   value={config.host}
                   onChange={(e) =>
                     setConfig({ ...config, host: e.target.value })
@@ -235,7 +238,7 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                 <Label htmlFor="port">Port *</Label>
                 <Input
                   id="port"
-                  placeholder="5432"
+                  placeholder="1433"
                   value={config.port}
                   onChange={(e) =>
                     setConfig({ ...config, port: e.target.value })
@@ -243,25 +246,22 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="database">Database Name *</Label>
               <Input
                 id="database"
-                placeholder="e.g., my_database"
+                placeholder="e.g., SalesDB"
                 value={config.database}
                 onChange={(e) =>
                   setConfig({ ...config, database: e.target.value })
                 }
               />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="username">Username *</Label>
                 <Input
                   id="username"
-                  placeholder="Database username"
                   value={config.username}
                   onChange={(e) =>
                     setConfig({ ...config, username: e.target.value })
@@ -273,7 +273,6 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Database password"
                   value={config.password}
                   onChange={(e) =>
                     setConfig({ ...config, password: e.target.value })
@@ -281,7 +280,6 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                 />
               </div>
             </div>
-
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ChevronLeft className="mr-2 size-4" /> Back
@@ -294,60 +292,45 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
         </Card>
       )}
 
+      {/* STEP 3: Test Connection */}
       {step === 3 && (
         <Card>
           <CardHeader>
             <CardTitle>Test Connection</CardTitle>
-            <CardDescription>
-              Verify that your database connection is working
-            </CardDescription>
+            <CardDescription>Verify your settings</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Database Type:</span>
-                <span className="capitalize">{config.type}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Connection Name:</span>
-                <span>{config.name}</span>
-              </div>
-              <div className="flex justify-between text-sm">
+            <div className="bg-muted/50 p-4 rounded-lg space-y-2 text-sm">
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Host:</span>
-                <span>
-                  {config.host}:{config.port}
-                </span>
+                <span className="font-medium">{config.host}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Database:</span>
-                <span>{config.database}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Username:</span>
-                <span>{config.username}</span>
+                <span className="font-medium">{config.database}</span>
               </div>
             </div>
 
             {connectionStatus === "idle" && (
               <Button onClick={handleTestConnection} className="w-full">
-                Test Connection
+                Connect & Discover Tables
               </Button>
             )}
 
             {connectionStatus === "testing" && (
-              <div className="flex items-center justify-center gap-3 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg">
-                <Loader2 className="size-5 animate-spin text-blue-600" />
-                <span>Testing connection...</span>
+              <div className="flex flex-col items-center justify-center gap-2 py-8">
+                <Loader2 className="size-8 animate-spin text-blue-600" />
+                <p className="text-sm text-muted-foreground">
+                  Connecting to database...
+                </p>
               </div>
             )}
 
             {connectionStatus === "success" && (
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle2 className="size-5 text-green-600" />
-                <AlertDescription className="text-green-800">
-                  Connection successful! Your database is ready to use.
-                </AlertDescription>
-              </Alert>
+              <div className="flex flex-col items-center justify-center gap-2 py-8 text-green-600">
+                <CheckCircle2 className="size-8" />
+                <p className="font-medium">Success! Redirecting...</p>
+              </div>
             )}
 
             {connectionStatus === "error" && (
@@ -356,25 +339,63 @@ export function DatabaseWizard({ onBack, onConnect }: DatabaseWizardProps) {
                 <AlertDescription className="text-red-800">
                   {errorMessage}
                 </AlertDescription>
-              </Alert>
             )}
+
+            {connectionStatus === "error" && (
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setStep(2)}>
+                  Back
+                </Button>
+                <Button onClick={handleTestConnection}>Retry</Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 4: Table Selection */}
+      {step === 4 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Table</CardTitle>
+            <CardDescription>
+              We found {tables.length} tables. Choose one to ingest.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ScrollArea className="h-72 w-full rounded-md border p-4">
+              <div className="space-y-2">
+                {tables.map((table) => (
+                  <div
+                    key={table}
+                    onClick={() => setSelectedTable(table)}
+                    className={`flex items-center p-3 rounded-lg cursor-pointer border transition-all ${
+                      selectedTable === table
+                        ? "bg-blue-50 border-blue-500 ring-1 ring-blue-500"
+                        : "hover:bg-muted border-transparent"
+                    }`}
+                  >
+                    <TableIcon className="size-4 mr-3 text-muted-foreground" />
+                    <span className="font-medium">{table}</span>
+                    {selectedTable === table && (
+                      <CheckCircle2 className="ml-auto size-4 text-blue-600" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
 
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => setStep(2)}>
-                <ChevronLeft className="mr-2 size-4" /> Back
+                Back to Config
               </Button>
-              {connectionStatus === "success" && (
-                <Button
-                  onClick={() => alert("Database source added successfully!")}
-                >
-                  Complete Setup
-                </Button>
-              )}
-              {connectionStatus === "error" && (
-                <Button variant="outline" onClick={handleTestConnection}>
-                  Retry
-                </Button>
-              )}
+              <Button
+                onClick={() => selectedTable && onComplete?.(selectedTable)}
+                disabled={!selectedTable}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Start Ingestion <ArrowRight className="ml-2 size-4" />
+              </Button>
             </div>
           </CardContent>
         </Card>
