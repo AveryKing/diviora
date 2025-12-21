@@ -1,0 +1,10 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./apps/api:/usr/src/app
+      # - /usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
