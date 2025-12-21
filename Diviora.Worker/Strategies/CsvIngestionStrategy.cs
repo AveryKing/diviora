@@ -9,26 +9,19 @@ using Dapper;
 
 namespace Diviora.Worker.Strategies
 {
-    public class CsvIngestionStrategy : BaseIngestionStrategy
+    public class CsvIngestionStrategy(ILogger<CsvIngestionStrategy> logger) : BaseIngestionStrategy
     {
-        private readonly ILogger<CsvIngestionStrategy> _logger;
         private readonly string _blobConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? "";
-        private readonly string _sqlConnectionString = Environment.GetEnvironmentVariable("SqlConnectionString") ?? "";
-
-        public CsvIngestionStrategy(ILogger<CsvIngestionStrategy> logger)
-        {
-            _logger = logger;
-        }
 
         public override async Task ExecuteAsync(JobMessage job)
         {
-            _logger.LogInformation($"[CSV Strategy] Starting Job {job.JobId} ({job.FileName})...");
+            logger.LogInformation($"[CSV Strategy] Starting Job {job.JobId} ({job.FileName})...");
 
             var blobServiceClient = new BlobServiceClient(_blobConnectionString);
             var containerClient = blobServiceClient.GetBlobContainerClient("diviora-data");
             var blobClient = containerClient.GetBlobClient(job.BlobPath);
 
-            using var dbConnection = new SqlConnection(_sqlConnectionString);
+            await using var dbConnection = new SqlConnection(_sqlConnectionString);
             await dbConnection.OpenAsync();
 
             await using var blobStream = await blobClient.OpenReadAsync();
@@ -36,8 +29,8 @@ namespace Diviora.Worker.Strategies
             using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
 
             var batch = new List<ProcessedData>();
-            int batchSize = 1000; 
-            int totalRecords = 0;
+            var batchSize = 1000; 
+            var totalRecords = 0;
 
             var records = csv.GetRecordsAsync<dynamic>();
 
@@ -62,7 +55,7 @@ namespace Diviora.Worker.Strategies
 
             if (batch.Count > 0) await BulkInsertAsync(dbConnection, batch);
 
-            _logger.LogInformation($"[CSV Strategy] Completed Job {job.JobId}. Processed {totalRecords} rows.");
+            logger.LogInformation($"[CSV Strategy] Completed Job {job.JobId}. Processed {totalRecords} rows.");
         }
         
     }

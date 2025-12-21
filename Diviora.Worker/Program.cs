@@ -7,8 +7,8 @@ var host = new HostBuilder()
     .ConfigureServices(services =>
     {
         services.AddSingleton<JobStrategyFactory>();
-        
         services.AddTransient<CsvIngestionStrategy>();
+        services.AddTransient<SqlIngestionStrategy>();
         
         services.AddLogging();
     })

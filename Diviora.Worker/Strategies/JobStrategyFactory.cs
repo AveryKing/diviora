@@ -17,6 +17,7 @@ namespace Diviora.Worker.Strategies
             return job.FileType.ToLower() switch
             {
                 "csv" => _serviceProvider.GetRequiredService<CsvIngestionStrategy>(),
+                "sql" => _serviceProvider.GetRequiredService<SqlIngestionStrategy>(),
                 // "json" => _serviceProvider.GetRequiredService<JsonIngestionStrategy>(),
                 // "xml" => _serviceProvider.GetRequiredService<XmlIngestionStrategy>(),
                 _ => throw new ArgumentException($"No strategy found for file type: {job.FileType}")
