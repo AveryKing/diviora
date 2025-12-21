@@ -1,0 +1,16 @@
+# Root .gitignore
+node_modules/
+dist/
+.env
+.env.*
+.DS_Store
+*.log
+*.tsbuildinfo
+coverage/
+# Ignore local VSCode settings
+.vscode/
+# Ignore OS junk
+Thumbs.db
+# Ignore package manager lock files except root
+**/package-lock.json
+!package-lock.json

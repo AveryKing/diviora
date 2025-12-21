@@ -1,0 +1,16 @@
+# Worker .gitignore
+node_modules/
+bin/
+obj/
+.env
+.env.*
+.DS_Store
+*.log
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.tsbuildinfo
+coverage/
+# Ignore test output
+*.test-results.json
