@@ -64,7 +64,7 @@ async onModuleInit() {
             JSON.stringify(message.body),
           );
 
-          const { jobId, blobPath, fileName, fileSize, dataSourceId } =
+          const { jobId, blobPath, fileName, fileSize, dataSourceId, fileType } =
             message.body;
 
           // Process the CSV file
@@ -75,6 +75,7 @@ async onModuleInit() {
               fileName,
               fileSize,
               dataSourceId,
+              fileType,
               correlationId: message.correlationId?.toString(),
             },
           );
