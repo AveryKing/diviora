@@ -4,58 +4,45 @@ import { useState } from "react";
 import { SourceTypeSelector } from "@/components/SourceTypeSelector";
 import { DatabaseWizard } from "@/components/DatabaseWizard";
 import { CSVWizard } from "@/components/CSVWizard";
-import { api } from "@/lib/api"; // Use our real API client!
+import { api } from "@/lib/api";
 
 export function IngestionDashboard() {
   const [sourceType, setSourceType] = useState<"csv" | "database" | null>(null);
 
-  // This function bridges your UI with the NestJS Backend
-  const handleDatabaseConnect = async (config: Record<string, any>) => {
+  type DataSourceResponse = { id: string; [key: string]: any };
+  const handleDatabaseConnect = async (config: any) => {
     try {
       console.log("Connecting to:", config);
-      // 1. Create Source
-      const source = await api.post<{ id: string }>("ingestion/data-sources", {
-        name: `SQL - ${config.host}`,
-        type: "sql",
-        configuration: JSON.stringify(config),
-      });
+      const source = await api.post<DataSourceResponse>(
+        "ingestion/data-sources",
+        {
+          name: `SQL - ${config.host}`,
+          type: "sql",
+          configuration: JSON.stringify(config),
+        }
+      );
 
-      // 2. Return the tables to the wizard
-      const tables = await api.get<any[]>(
-        `ingestion/data-sources/${(source as { id: string }).id}/tables`
+      const tables = await api.get(
+        `ingestion/data-sources/${source.id}/tables`
       );
       return tables;
     } catch (err) {
       console.error(err);
-      throw err; // The Wizard component handles the error UI
+      throw err;
     }
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto py-12 px-4">
-      <div className="mb-12 text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-          New Ingestion Pipeline
-        </h1>
-        <p className="text-lg text-gray-500 max-w-2xl mx-auto">
-          Connect your data sources securely. Diviora supports high-performance
-          streaming for both flat files and relational databases.
-        </p>
-      </div>
-
-      {/* Step 1: Select Type */}
+    <div className="w-full max-w-7xl mx-auto py-12 px-6">
       {!sourceType && (
-        <SourceTypeSelector
-          onSelectType={(type: "csv" | "database") => setSourceType(type)}
-        />
+        <SourceTypeSelector onSelectType={(type) => setSourceType(type)} />
       )}
 
-      {/* Step 2: Configure */}
       <div className="mt-8 transition-all">
         {sourceType === "database" && (
           <DatabaseWizard
             onBack={() => setSourceType(null)}
-            // If you want to extend DatabaseWizard to accept onConnect, add it to the component definition
+            onConnect={handleDatabaseConnect}
           />
         )}
 

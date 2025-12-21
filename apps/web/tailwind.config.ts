@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import { fontFamily } from "tailwindcss/defaultTheme";
 
 const config: Config = {
   darkMode: "class",
@@ -17,10 +18,13 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-geist-sans)", ...fontFamily.sans],
+        mono: ["var(--font-geist-mono)", ...fontFamily.mono],
+      },
       colors: {
         border: "var(--border)",
         input: "var(--input)",
-        // Custom variable from your Figma file
         "input-background": "var(--input-background)",
         "switch-background": "var(--switch-background)",
         ring: "var(--ring)",
