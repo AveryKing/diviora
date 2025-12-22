@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataSource } from '../entities/data-source.entity';
@@ -9,6 +9,7 @@ import { MessageService } from './message.service';
 import { CsvProcessorService } from './csv-processor.service';
 import { DataSource as TypeOrmDataSource } from 'typeorm';
 import * as mssql from 'mssql';
+
 @Injectable()
 export class DataIngestionService {
   private readonly logger = new Logger(DataIngestionService.name);
@@ -36,7 +37,6 @@ export class DataIngestionService {
       const timestamp = Date.now();
       const blobFileName = `csv-uploads/${timestamp}-${file.originalname}`;
 
-      // TODO: remove file if db fails
       const blobUrl = await this.blobStorageService.uploadFile(
         blobFileName,
         file.buffer,
@@ -131,7 +131,6 @@ export class DataIngestionService {
       });
     });
 
-    // Save in batches to avoid memory issues with large files
     const batchSize = 100;
     for (let i = 0; i < processedDataEntries.length; i += batchSize) {
       const batch = processedDataEntries.slice(i, i + batchSize);
@@ -197,10 +196,21 @@ export class DataIngestionService {
 
     const savedJob = await this.jobRepository.save(job);
 
-    // Trigger processing based on data source type
     if (dataSource.type === 'api') {
-      // Handle API data source
       await this.processApiDataSource(dataSource, savedJob);
+    } else if (dataSource.type === 'sql') {
+      const config = JSON.parse(dataSource.configuration);
+
+      await this.messageService.sendDataProcessingMessage(
+        savedJob.id,
+        config.tableName || 'Unknown_Table',
+        {
+          fileName: config.tableName || 'Unknown_Table',
+          fileSize: 0,
+          dataSourceId: dataSource.id,
+          fileType: 'sql',
+        },
+      );
     }
 
     return savedJob;
@@ -222,7 +232,6 @@ export class DataIngestionService {
     );
 
     try {
-      // Get the job
       const job = await this.jobRepository.findOne({
         where: { id: jobId },
       });
@@ -231,18 +240,15 @@ export class DataIngestionService {
         throw new Error(`Job ${jobId} not found`);
       }
 
-      // Update job status to processing
       job.status = 'processing';
       job.startedAt = new Date();
       await this.jobRepository.save(job);
 
       this.logger.log(`Job ${jobId} status updated to processing`);
 
-      // Download CSV file from blob storage
       this.logger.log(`Downloading file from blob storage: ${blobPath}`);
       const fileBuffer = await this.blobStorageService.downloadFile(blobPath);
 
-      // Process the CSV file
       this.logger.log(`Processing CSV file: ${metadata.fileName}`);
       const processingResult = await this.csvProcessorService.processCsvFile(
         fileBuffer,
@@ -253,11 +259,9 @@ export class DataIngestionService {
         `CSV processing completed. Valid rows: ${processingResult.validRows}, Invalid rows: ${processingResult.invalidRows}`,
       );
 
-      // Store processed data
       this.logger.log(`Storing processed data for job ${jobId}`);
       await this.storeProcessedData(job, processingResult, metadata.fileName);
 
-      // Update job status to completed
       job.status = 'completed';
       job.completedAt = new Date();
       job.recordsProcessed = processingResult.validRows;
@@ -273,7 +277,6 @@ export class DataIngestionService {
         error.stack,
       );
 
-      // Try to update job status to failed
       try {
         const job = await this.jobRepository.findOne({
           where: { id: jobId },
@@ -300,8 +303,6 @@ export class DataIngestionService {
     job: DataIngestionJob,
   ) {
     // Implementation for API data source processing
-    // This would make HTTP requests to the configured API endpoint
-    // and store the data in blob storage for further processing
   }
 
   async discoverTables(sourceId: number): Promise<string[]> {
@@ -310,37 +311,53 @@ export class DataIngestionService {
     });
 
     if (!dataSource || dataSource.type !== 'sql') {
-      throw new Error('Data source not found or is not a SQL source');
+      throw new BadRequestException(
+        'Data source not found or is not a SQL source',
+      );
     }
 
     const config = JSON.parse(dataSource.configuration);
-
-    const pool = await mssql.connect({
-      user: config.username,
-      password: config.password,
-      server: config.host,
-      database: config.database,
-      options: {
-        encrypt: false,
-        trustServerCertificate: true,
-      },
-    });
+    let pool: mssql.ConnectionPool;
 
     try {
+      pool = await mssql.connect({
+        user: config.username,
+        password: config.password,
+        server: config.host,
+        database: config.database,
+        options: {
+          encrypt: false,
+          trustServerCertificate: true,
+        },
+      });
+
       const result = await pool.request().query(`
-      SELECT TABLE_NAME 
-      FROM INFORMATION_SCHEMA.TABLES 
-      WHERE TABLE_TYPE = 'BASE TABLE'
-    `);
+        SELECT TABLE_NAME 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_TYPE = 'BASE TABLE'
+      `);
 
       return result.recordset.map((row) => row.TABLE_NAME);
     } catch (error) {
       this.logger.error(
         `Discovery failed for source ${sourceId}: ${error.message}`,
       );
-      throw new Error(`Failed to discover tables: ${error.message}`);
+
+      if (error.code === 'ELOGIN') {
+        throw new BadRequestException(
+          `Login failed: Invalid credentials for user '${config.username}'`,
+        );
+      } else if (error.code === 'ESOCKET') {
+        throw new BadRequestException(
+          `Connection failed: Could not reach host '${config.host}'`,
+        );
+      }
+
+      throw new BadRequestException(`Database Error: ${error.message}`);
     } finally {
-      await pool.close();
+      if (pool) {
+        await pool.close();
+      }
     }
   }
 }

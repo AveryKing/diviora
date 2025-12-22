@@ -47,8 +47,7 @@ const databaseDefaults: Record<DatabaseType, { port: string; icon: string }> = {
 
 interface DatabaseWizardProps {
   onBack?: () => void;
-  // Updated signature: returns the list of tables on success
-  onConnect?: (config: any) => Promise<string[]>;
+  onConnect?: (config: DatabaseConfig) => Promise<string[]>;
   onComplete?: (table: string) => void;
 }
 
@@ -73,7 +72,7 @@ export function DatabaseWizard({
   const [tables, setTables] = useState<string[]>([]);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
 
-  const totalSteps = 4; // Increased to 4
+  const totalSteps = 4;
   const progress = (step / totalSteps) * 100;
 
   const handleDatabaseTypeChange = (type: DatabaseType) => {
@@ -93,7 +92,6 @@ export function DatabaseWizard({
         const discoveredTables = await onConnect(config);
         setTables(discoveredTables);
         setConnectionStatus("success");
-        // Auto-advance after short delay
         setTimeout(() => setStep(4), 1000);
       } else {
         // Mock for UI testing
@@ -104,7 +102,11 @@ export function DatabaseWizard({
       }
     } catch (e) {
       setConnectionStatus("error");
-      setErrorMessage(e?.message || (typeof e === 'string' ? e : 'Unknown error'));
+      if (e instanceof Error) {
+        setErrorMessage(e.message);
+      } else {
+        setErrorMessage(typeof e === "string" ? e : "Unknown error occurred");
+      }
     }
   };
 
@@ -339,6 +341,7 @@ export function DatabaseWizard({
                 <AlertDescription className="text-red-800">
                   {errorMessage}
                 </AlertDescription>
+              </Alert>
             )}
 
             {connectionStatus === "error" && (
