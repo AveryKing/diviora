@@ -23,7 +23,7 @@ export class DataIngestionJob {
   @Column({ default: 0 })
   recordsProcessed: number;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: 'text', default: '' })
   errorMessage: string;
 
   @Column({ type: 'text', nullable: true })
