@@ -185,8 +185,8 @@ public class SqlIngestionStrategy(ILogger<SqlIngestionStrategy> logger) : BaseIn
             for (var i = 0; i < mappings.Count; i++)
             {
                 var map = mappings[i];
-                var sourceCol = map.source.Replace("[", "").Replace("]", ""); 
-                var targetCol = map.target.Replace("[", "").Replace("]", "");
+                var sourceCol = map.source.Trim('[', ']'); 
+                var targetCol = map.target.Trim('[', ']');
 
                 sb.Append($"[{sourceCol}] AS [{targetCol}]");
                 
