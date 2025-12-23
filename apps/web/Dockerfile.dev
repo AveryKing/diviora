@@ -1,8 +1,23 @@
 FROM node:20-alpine
+
+# Create a non-root user
+RUN addgroup -g 1000 -S nodejs && adduser -S nodejs -u 1000
+
 WORKDIR /usr/src/app
+
+# Install dependencies as root
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
+
+# Copy application files
 COPY . .
+
+# Change ownership to non-root user
+RUN chown -R nodejs:nodejs /usr/src/app
+
+# Switch to non-root user
+USER nodejs
+
 ENV NEXT_TELEMETRY_DISABLED=1
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
