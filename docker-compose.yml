@@ -41,6 +41,23 @@ services:
       db:
         condition: service_healthy
     restart: on-failure
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    container_name: diviora-web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      - INTERNAL_API_URL=http://api:3001
+    volumes:
+      - ./apps/web:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - api
+    restart: on-failure
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
     container_name: diviora-azurite
