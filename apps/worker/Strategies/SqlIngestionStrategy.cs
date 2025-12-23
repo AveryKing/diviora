@@ -159,11 +159,35 @@ public class SqlIngestionStrategy(ILogger<SqlIngestionStrategy> logger) : BaseIn
         }
     }
 
+    private string SanitizeSqlIdentifier(string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            throw new ArgumentException("SQL identifier cannot be null or empty", nameof(identifier));
+        }
+
+        // Remove any existing brackets first
+        var cleaned = identifier.Replace("[", "").Replace("]", "");
+        
+        // Validate that the identifier contains only valid characters
+        // SQL Server identifiers can contain: letters, digits, @, $, #, _
+        // They cannot start with a digit (unless bracketed)
+        if (!System.Text.RegularExpressions.Regex.IsMatch(cleaned, @"^[a-zA-Z_@#][\w@#$]*$"))
+        {
+            throw new ArgumentException($"Invalid SQL identifier: {identifier}. Identifiers must start with a letter, @, #, or _ and contain only alphanumeric characters, @, $, #, or _.", nameof(identifier));
+        }
+
+        // Return the identifier wrapped in brackets for safe use in SQL
+        return $"[{cleaned}]";
+    }
+
     private string BuildQuery(JobMessage job)
     {
+        var tableName = SanitizeSqlIdentifier(job.FileName);
+        
         if (!job.Metadata.TryGetValue("columnMapping", out var mappingObj))
         {
-            return $"SELECT * FROM {job.FileName}";
+            return $"SELECT * FROM {tableName}";
         }
 
         try 
@@ -171,7 +195,7 @@ public class SqlIngestionStrategy(ILogger<SqlIngestionStrategy> logger) : BaseIn
             var mappingJson = mappingObj.ToString();
 
             if (string.IsNullOrEmpty(mappingJson)) 
-                return $"SELECT * FROM {job.FileName}";
+                return $"SELECT * FROM {tableName}";
 
             var mappings = JsonSerializer.Deserialize<List<ColumnMapping>>(
                 mappingJson, 
@@ -179,7 +203,7 @@ public class SqlIngestionStrategy(ILogger<SqlIngestionStrategy> logger) : BaseIn
             );
             
             if (mappings == null || mappings.Count == 0)
-                return $"SELECT * FROM {job.FileName}";
+                return $"SELECT * FROM {tableName}";
 
             var sb = new StringBuilder("SELECT ");
             for (var i = 0; i < mappings.Count; i++)
@@ -193,13 +217,13 @@ public class SqlIngestionStrategy(ILogger<SqlIngestionStrategy> logger) : BaseIn
                 if (i < mappings.Count - 1) sb.Append(", ");
             }
             
-            sb.Append($" FROM {job.FileName}");
+            sb.Append($" FROM {tableName}");
             return sb.ToString();
         }
         catch (Exception ex)
         {
             logger.LogWarning($"Failed to parse column mappings: {ex.Message}. Reverting to SELECT *");
-            return $"SELECT * FROM {job.FileName}";
+            return $"SELECT * FROM {tableName}";
         }
     }
 }
