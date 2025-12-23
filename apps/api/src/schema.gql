@@ -10,6 +10,7 @@ scalar DateTime
 type ProcessedData {
   createdAt: DateTime!
   data: String!
+  dataSourceId: Int!
   id: ID!
   jobId: Int!
   rowNumber: Int

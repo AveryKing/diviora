@@ -8,6 +8,7 @@ import {
   UploadedFile,
   Query,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DataIngestionService } from '../services/data-ingestion.service';
@@ -58,14 +59,27 @@ export class IngestionController {
     return this.ingestionService.discoverTables(parseInt(sourceId));
   }
 
+  @Get('data-sources/:id/schema')
+  async getSchema(@Param('id') id: string, @Query('table') tableName: string) {
+    if (!tableName) {
+      throw new BadRequestException('Query parameter "table" is required');
+    }
+    return this.ingestionService.discoverSchema(+id, tableName);
+  }
+  @Get('data-sources/:id/jobs')
+  async getJobs(@Param('id') id: string) {
+    return this.ingestionService.getJobsForSource(+id);
+  }
   @Get('jobs/:sourceId')
   async getJobsForSource(@Param('sourceId') sourceId: string) {
     return this.ingestionService.getJobsForSource(parseInt(sourceId));
   }
-
   @Post('trigger/:sourceId')
-  async triggerIngestion(@Param('sourceId') sourceId: string) {
-    return this.ingestionService.triggerIngestion(parseInt(sourceId));
+  async triggerIngestion(
+    @Param('sourceId') sourceId: string,
+    @Body() body: { tableName?: string; mappings?: any[] },
+  ) {
+    return this.ingestionService.triggerIngestion(parseInt(sourceId), body);
   }
 
   @Get('download/:jobId')

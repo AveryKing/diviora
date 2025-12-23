@@ -9,8 +9,12 @@ dist/
 coverage/
 # Ignore local VSCode settings
 .vscode/
+# Ignore JetBrains IDE settings
+.idea/
+*.DotSettings.user
 # Ignore OS junk
 Thumbs.db
 # Ignore package manager lock files except root
 **/package-lock.json
 !package-lock.json
+apps/worker/local.settings.json

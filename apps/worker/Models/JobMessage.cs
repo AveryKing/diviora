@@ -16,11 +16,12 @@ namespace Diviora.Worker.Models
 
         [JsonPropertyName("fileName")]
         public string FileName { get; set; } = string.Empty;
-
-        // "Type" discriminator for our Strategy Factory
+        
         [JsonPropertyName("fileType")]
         public string FileType { get; set; } = string.Empty;
         
+        [JsonExtensionData]
+        public Dictionary<string, object> Metadata { get; set; } = new Dictionary<string, object>();
         
     }
 }
