@@ -1,4 +1,5 @@
-const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://api:3001";
+const PUBLIC_API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const INTERNAL_API_URL = process.env.INTERNAL_API_URL || PUBLIC_API_URL;
 // Use internal host for SSR (inside the container) and public host for the browser.
 const API_URL =

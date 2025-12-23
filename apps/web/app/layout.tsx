@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google"; // <--- Switch to Inter
+import "antd/dist/reset.css";
 import "./globals.css";
 
 // Configure Inter (Standard for Figma/Shadcn)

@@ -35,4 +35,8 @@ export class ProcessedData {
   @Field(() => Int)
   @Column()
   jobId: number;
+
+  @Field(() => Int)
+  @Column()
+  dataSourceId: number;
 }

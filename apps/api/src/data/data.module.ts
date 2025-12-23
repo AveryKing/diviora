@@ -14,6 +14,8 @@ import { DataSource } from './entities/data-source.entity';
 import { DataIngestionJob } from './entities/data-ingestion-job.entity';
 import { ProcessedData } from './entities/processed-data.entity';
 import { ProcessedDataResolver } from './processed-data.resolver';
+import { DevController } from './controllers/dev.controller';
+import { DevOpsService } from './services/dev-ops.service';
 
 @Module({
   imports: [
@@ -29,7 +31,7 @@ import { ProcessedDataResolver } from './processed-data.resolver';
       },
     }),
   ],
-  controllers: [DataController, IngestionController],
+  controllers: [DataController, IngestionController, DevController],
   providers: [
     DataService,
     DataIngestionService,
@@ -38,6 +40,7 @@ import { ProcessedDataResolver } from './processed-data.resolver';
     MessageService,
     MessageConsumerService,
     ProcessedDataResolver,
+    DevOpsService,
   ],
 })
 export class DataModule {}

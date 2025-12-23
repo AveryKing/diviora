@@ -12,8 +12,8 @@ public abstract class BaseIngestionStrategy : IJobStrategy
     
     protected async Task BulkInsertAsync(SqlConnection conn, List<ProcessedData> data)
     {
-        var sql = @"INSERT INTO processed_data (jobId, rowNumber, data, sourceFileName, createdAt) 
-                        VALUES (@JobId, @RowNumber, @Data, @SourceFileName, @CreatedAt)";
+        var sql = @"INSERT INTO processed_data (jobId, dataSourceId, rowNumber, data, sourceFileName, createdAt) 
+                        VALUES (@JobId, @DataSourceId, @RowNumber, @Data, @SourceFileName, @CreatedAt)";
 
         using var transaction = conn.BeginTransaction();
         try

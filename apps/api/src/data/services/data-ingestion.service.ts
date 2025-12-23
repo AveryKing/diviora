@@ -125,6 +125,7 @@ export class DataIngestionService {
     const processedDataEntries = processingResult.data.map((row) => {
       return this.processedDataRepository.create({
         jobId: job.id,
+        dataSourceId: job.dataSourceId,
         data: JSON.stringify(row),
         rowNumber: row._rowNumber,
         sourceFileName: fileName,
@@ -180,7 +181,10 @@ export class DataIngestionService {
     });
   }
 
-  async triggerIngestion(sourceId: number) {
+  async triggerIngestion(
+    sourceId: number,
+    runConfig: { tableName?: string; mappings?: any[] } = {},
+  ) {
     const dataSource = await this.dataSourceRepository.findOne({
       where: { id: sourceId },
     });
@@ -189,26 +193,39 @@ export class DataIngestionService {
       throw new Error('Data source not found');
     }
 
+    // prepare the config to be saved
+    const jobConfig = {
+      tableName: runConfig.tableName,
+      mappings: runConfig.mappings,
+      triggeredAt: new Date().toISOString(),
+    };
+
     const job = this.jobRepository.create({
-      status: 'pending',
+      status: 'queued',
       dataSourceId: sourceId,
+      runConfiguration: JSON.stringify(jobConfig),
     });
 
     const savedJob = await this.jobRepository.save(job);
 
+    const storedConfig = JSON.parse(dataSource.configuration);
+    const tableName =
+      runConfig.tableName || storedConfig.tableName || 'Unknown_Table';
+
     if (dataSource.type === 'api') {
       await this.processApiDataSource(dataSource, savedJob);
     } else if (dataSource.type === 'sql') {
-      const config = JSON.parse(dataSource.configuration);
-
       await this.messageService.sendDataProcessingMessage(
         savedJob.id,
-        config.tableName || 'Unknown_Table',
+        tableName,
         {
-          fileName: config.tableName || 'Unknown_Table',
+          fileName: tableName,
           fileSize: 0,
           dataSourceId: dataSource.id,
           fileType: 'sql',
+          columnMapping: runConfig.mappings
+            ? JSON.stringify(runConfig.mappings)
+            : '',
         },
       );
     }
@@ -265,7 +282,7 @@ export class DataIngestionService {
       job.status = 'completed';
       job.completedAt = new Date();
       job.recordsProcessed = processingResult.validRows;
-      job.errorMessage = null;
+      job.errorMessage = '';
       await this.jobRepository.save(job);
 
       this.logger.log(
@@ -375,8 +392,6 @@ export class DataIngestionService {
     const config = JSON.parse(dataSource.configuration);
     let pool: mssql.ConnectionPool;
 
-    // Helper: Split "dbo.Users" into ["dbo", "Users"]
-    // If no schema is provided (e.g. just "Users"), default to empty or handle gracefully
     let schemaName = 'dbo';
     let tableName = fullTableName;
 

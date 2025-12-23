@@ -1,9 +1,9 @@
-import { IngestionDashboard } from "@/components/ingestion-dashboard";
+import { AntDashboard } from "@/components/AntDashboard";
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-background">
-      <IngestionDashboard />
+      <AntDashboard />
     </main>
   );
 }

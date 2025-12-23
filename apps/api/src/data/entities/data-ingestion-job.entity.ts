@@ -3,28 +3,37 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-@Entity('data_ingestion_jobs')
+import { DataSource } from './data-source.entity';
+
+@Entity()
 export class DataIngestionJob {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
-  status: string; // 'queued', 'processing', 'completed', 'failed'
+  status: string; // 'pending', 'queued', 'processing', 'completed', 'failed'
 
   @Column({ nullable: true })
+  blobStoragePath: string;
+
+  @Column({ default: 0 })
   recordsProcessed: number;
 
-  @Column({ nullable: true, type: 'nvarchar', length: 'MAX' })
-  errorMessage: string | null;
+  @Column({ type: 'text', nullable: true })
+  errorMessage: string;
 
-  @Column({ nullable: true })
-  blobStoragePath: string; // Path to raw data in Azure Blob Storage
+  @Column({ type: 'text', nullable: true })
+  runConfiguration: string;
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 
   @Column({ nullable: true })
   startedAt: Date;
@@ -32,10 +41,10 @@ export class DataIngestionJob {
   @Column({ nullable: true })
   completedAt: Date;
 
-  @ManyToOne('DataSource', 'ingestionJobs')
-  @JoinColumn({ name: 'dataSourceId' })
-  dataSource: any;
-
   @Column()
   dataSourceId: number;
+
+  @ManyToOne(() => DataSource, (dataSource) => dataSource.ingestionJobs)
+  @JoinColumn({ name: 'dataSourceId' })
+  dataSource: DataSource;
 }
