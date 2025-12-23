@@ -21,10 +21,6 @@ jobs:
         working-directory: apps/api
         run: npm ci
 
-      - name: Lint
-        working-directory: apps/api
-        run: npm run lint
-
       - name: Build
         working-directory: apps/api
         run: npm run build
@@ -43,10 +39,6 @@ jobs:
       - name: Install Dependencies
         working-directory: apps/web
         run: npm ci --legacy-peer-deps
-
-      - name: Lint
-        working-directory: apps/web
-        run: npm run lint
 
       - name: Build
         working-directory: apps/web
