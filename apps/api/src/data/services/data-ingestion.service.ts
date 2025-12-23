@@ -360,4 +360,71 @@ export class DataIngestionService {
       }
     }
   }
+
+  async discoverSchema(sourceId: number, fullTableName: string) {
+    const dataSource = await this.dataSourceRepository.findOne({
+      where: { id: sourceId },
+    });
+
+    if (!dataSource || dataSource.type !== 'sql') {
+      throw new BadRequestException(
+        'Data source not found or is not a SQL source',
+      );
+    }
+
+    const config = JSON.parse(dataSource.configuration);
+    let pool: mssql.ConnectionPool;
+
+    // Helper: Split "dbo.Users" into ["dbo", "Users"]
+    // If no schema is provided (e.g. just "Users"), default to empty or handle gracefully
+    let schemaName = 'dbo';
+    let tableName = fullTableName;
+
+    if (fullTableName.includes('.')) {
+      const parts = fullTableName.split('.');
+      schemaName = parts[0];
+      tableName = parts[1];
+    }
+
+    try {
+      pool = await mssql.connect({
+        user: config.username,
+        password: config.password,
+        server: config.host,
+        database: config.database,
+        options: {
+          encrypt: false,
+          trustServerCertificate: true,
+        },
+      });
+
+      const result = await pool
+        .request()
+        .input('schema', mssql.NVarChar, schemaName)
+        .input('table', mssql.NVarChar, tableName).query(`
+          SELECT 
+            COLUMN_NAME as name, 
+            DATA_TYPE as type, 
+            IS_NULLABLE as isNullable
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @table
+          ORDER BY ORDINAL_POSITION
+        `);
+
+      if (result.recordset.length === 0) {
+        throw new BadRequestException(
+          `No columns found for table ${fullTableName}. Check permissions.`,
+        );
+      }
+
+      return result.recordset;
+    } catch (error) {
+      this.logger.error(`Schema discovery failed: ${error.message}`);
+      throw new BadRequestException(`Failed to fetch schema: ${error.message}`);
+    } finally {
+      if (pool) {
+        await pool.close();
+      }
+    }
+  }
 }
